@@ -5,4 +5,4 @@ Yapay Zeka Ve Veri Mühendisligi tasarımı  dersi için gerekli ilerlemelerin y
 
 
 
-figma linki : https://www.figma.com/design/JiiyZqCBS7HJiwMbHmAhVG/Untitled?node-id=0-1&t=UEAnBPE9B3kDolSL-1
+figma linki : https://www.figma.com/design/JiiyZqCBS7HJiwMbHmAhVG/Untitled?node-id=5-804&t=DFI50iGSQjvsUDAB-1
