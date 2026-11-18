@@ -2,6 +2,8 @@
 
 Yapay Zeka ve Veri Mühendisliği Tasarımı dersi projesi. Mehmet Hanifi IŞIK & Enes AKKUŞ.
 
+Figma prototipi: https://www.figma.com/proto/JiiyZqCBS7HJiwMbHmAhVG/Untitled?node-id=0-1&t=unjG57tNMlWoeuoE-1
+
 ## Hafta 3 teslimleri
 - [x] Test seti şablonu: `data/manifest.csv`, `data/<set>/ref|tasks|audio`
 - [x] EDA notebook: `notebooks/eda.ipynb`
