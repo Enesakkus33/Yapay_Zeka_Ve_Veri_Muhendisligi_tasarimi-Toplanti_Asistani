@@ -1,0 +1,6 @@
+[
+ {"task":"PostgreSQL migration işini bitirmek","assignee":"Ahmet","due":"2026-11-27","priority":"Orta"},
+ {"task":"arayüz mockup'larını tamamlamak","assignee":"Zeynep","due":"2026-11-19","priority":"Orta"},
+ {"task":"deploy için Docker dosyasını hazırlamak","assignee":"Can","due":null,"priority":"Düşük"},
+ {"task":"login ekranındaki hatayı düzeltmek","assignee":"Zeynep","due":"2026-11-18","priority":"Yüksek"}
+]

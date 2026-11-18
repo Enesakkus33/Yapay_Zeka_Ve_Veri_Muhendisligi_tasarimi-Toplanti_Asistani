@@ -1,0 +1,2 @@
+id,audio,meeting_date,participants,glossary
+m001,data/sample/audio/m001.wav,2026-11-18,"Ahmet;Zeynep;Can","deploy;backend;sprint;pull request;PostgreSQL"
