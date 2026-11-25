@@ -1,0 +1,41 @@
+# Gizli Anahtarlar
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+venv/
+.venv/
+env/
+
+# Üretilen Çıktılar
+output/*
+!output/.gitkeep
+
+# Geçici Ses/Video Dosyaları
+temp_audio/
+*.mp3
+*.mp4
+*.webm
+*.wav
+*.m4a
+
+# Whisper İndirilen Modeller
+models/
+
+# IDE
+.vscode/
+.idea/
+*.code-workspace
+
+# OS
+.DS_Store
+Thumbs.db
