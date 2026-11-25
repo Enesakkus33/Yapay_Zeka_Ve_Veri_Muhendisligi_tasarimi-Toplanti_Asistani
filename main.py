@@ -1,13 +1,9 @@
 """
 main.py
 -------
-YouTube Ders Notu Üreteci (Gemini 2.5 Native Multimodal Audio Mimarisi)
-
-Kullanım:
-  python main.py <YouTube_URL>
-
-Örnek:
-  python main.py "https://www.youtube.com/watch?v=s7wmiS2mSXY"
+Hibrit YouTube Toplantı & Ders Notu Üreteci:
+1. Whisper AI: Videonun baştan sona birebir tam transkriptini (zaman damgalı) yerel olarak çıkarır.
+2. Google Gemini: Bu transkriptten akademik kalitede ders notu, özet ve sınav soruları üretir.
 """
 
 import argparse
@@ -18,11 +14,10 @@ from pathlib import Path
 from datetime import datetime
 from dotenv import load_dotenv
 
-# .env dosyasını yükle
 load_dotenv()
 
-from src.extractor import get_video_audio
-from src.summarizer import generate_notes_from_audio
+from src.extractor import download_audio, transcribe_audio_with_whisper
+from src.summarizer import generate_study_notes
 
 logging.basicConfig(
     level=logging.INFO,
@@ -36,10 +31,10 @@ logger = logging.getLogger(__name__)
 def _safe_filename(text: str, max_len: int = 50) -> str:
     safe = re.sub(r'[^\w\s-]', '', text).strip()
     safe = re.sub(r'[\s]+', '_', safe)
-    return safe[:max_len] if safe else "ders_notu"
+    return safe[:max_len] if safe else "notlar"
 
 
-def _save_output(content: str, video_id: str, output_dir: Path, title: str = "") -> Path:
+def _save_output(content: str, output_dir: Path, title: str = "", video_id: str = "") -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     base = _safe_filename(title) if title else video_id
@@ -55,68 +50,99 @@ def _save_output(content: str, video_id: str, output_dir: Path, title: str = "")
 def main():
     parser = argparse.ArgumentParser(
         prog="yt-study-notes",
-        description="YouTube videolarından Gemini Native Audio ile otomatik ders notu üretici",
+        description="Whisper (Tam Transkript) + Gemini (Ders Notu) Hibrit Asistan",
     )
     parser.add_argument("url", help="YouTube video URL'si")
-    parser.add_argument("--gemini-model", default=None, dest="gemini_model", help="Kullanılacak model")
+    parser.add_argument("--whisper-model", default="base", help="Whisper model boyutu (varsayılan: base)")
+    parser.add_argument("--gemini-model", default=None, help="Gemini model adı (varsayılan: .env)")
     parser.add_argument("--output", default="output", help="Çıktı klasörü (varsayılan: ./output)")
     parser.add_argument("--keep-audio", action="store_true", help="İndirilen ses dosyasını silme")
     args = parser.parse_args()
 
-    print("\n" + "=" * 60)
-    print("  🎓 YouTube Ders Notu Üreteci (Gemini Multimodal Audio)")
-    print("=" * 60)
+    print("\n" + "=" * 65)
+    print("  🎓 YouTube Toplantı & Ders Notu Üreteci (Whisper + Gemini)")
+    print("=" * 65)
     print(f"  URL   : {args.url}")
     print(f"  Çıktı : ./{args.output}/")
-    print("=" * 60 + "\n")
+    print("=" * 65 + "\n")
 
-    # 1. Ses İndirme
-    print("📥 Adım 1/2: Video sesi ayıklanıyor...")
+    # 1. Ses İndirme (yt-dlp)
+    print("📥 Adım 1/3: Video sesi ayıklanıyor...")
     try:
-        audio_info = get_video_audio(args.url)
+        video_id, title, duration_min, audio_path = download_audio(args.url)
     except Exception as e:
         logger.error(f"Ses indirilemedi: {e}")
         sys.exit(1)
 
-    print(f"   ✅ Ses hazır: {Path(audio_info.audio_path).name} | Başlık: {audio_info.title}\n")
+    print(f"   ✅ Ses hazır: {Path(audio_path).name} | Başlık: {title}\n")
 
-    # 2. Gemini Dinleme ve Ders Notu Üretimi
-    print("🧠 Adım 2/2: Gemini videonun tam transkriptini ve ders notunu çıkarıyor...")
+    # 2. Yerel Transkripsiyon (Whisper)
+    print("🎙️ Adım 2/3: Whisper ile videonun baştan sona tam transkripti çıkarılıyor...")
     try:
-        notes = generate_notes_from_audio(
-            audio_path=audio_info.audio_path,
-            video_title=audio_info.title,
+        language, full_transcript, segments = transcribe_audio_with_whisper(
+            audio_path=audio_path,
+            model_size=args.whisper_model,
+        )
+    except Exception as e:
+        logger.error(f"Whisper transkripsiyon hatası: {e}")
+        sys.exit(1)
+
+    print(f"   ✅ Transkript tamamlandı! Dil: {language.upper()} | Toplam {len(segments)} cümle\n")
+
+    # 3. Ders Notu Üretimi (Gemini)
+    print("🧠 Adım 3/3: Gemini transkripti inceliyor, ders notu ve özet hazırlanıyor...")
+    try:
+        study_notes = generate_study_notes(
+            transcript_text=full_transcript,
+            video_title=title,
             model_name=args.gemini_model,
         )
-    except EnvironmentError as e:
-        logger.error(str(e))
-        sys.exit(1)
     except Exception as e:
-        logger.error(f"Analiz hatası: {e}")
+        logger.error(f"Gemini analiz hatası: {e}")
         sys.exit(1)
 
-    # 3. Notu Kaydetme
+    print("   ✅ Ders notları başarıyla oluşturuldu!\n")
+
+    # 4. İki Bölümlü Tam Dokümanı Oluşturma
+    document_content = f"""# 📚 {title}
+
+---
+
+# 🎙️ BÖLÜM 1: VİDEONUN BİREBİR TAM TRANSKRİPTİ (Whisper AI)
+> **Kaynak Dil:** {language.upper()} | **Toplam Segment:** {len(segments)} | **Model:** Faster-Whisper ({args.whisper_model})
+
+{full_transcript}
+
+---
+
+# 🎓 BÖLÜM 2: YAPAY ZEKA DERS NOTLARI VE ANALİZ (Google Gemini)
+
+{study_notes}
+"""
+
     output_path = _save_output(
-        content=notes,
-        video_id=audio_info.video_id,
+        content=document_content,
         output_dir=Path(args.output),
-        title=audio_info.title,
+        title=title,
+        video_id=video_id,
     )
 
-    # Geçici ses dosyasını temizle (istenirse)
+    # Geçici ses dosyasını temizle
     if not args.keep_audio:
         try:
-            Path(audio_info.audio_path).unlink(missing_ok=True)
+            Path(audio_path).unlink(missing_ok=True)
         except Exception:
             pass
 
-    print("\n" + "=" * 60)
-    print("  🎉 TEBRİKLER! DERS NOTU HAZIRLANDI!")
+    print("=" * 65)
+    print("  🎉 TEBRİKLER! İŞLEM BAŞARIYLA TAMAMLANDI!")
     print(f"  📄 Dosya: {output_path}")
-    print("=" * 60 + "\n")
+    print("=" * 65 + "\n")
 
-    print("--- ÜRETİLEN NOTUN İLK BÖLÜMÜ ---")
-    print(notes[:500] + "\n...")
+    print("--- TRANSKRİPTTEN İLK KESİT ---")
+    first_lines = "\n".join(full_transcript.splitlines()[:5])
+    print(first_lines)
+    print("...\n")
 
 
 if __name__ == "__main__":

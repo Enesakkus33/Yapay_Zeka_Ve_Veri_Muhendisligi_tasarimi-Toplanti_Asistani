@@ -1,48 +1,27 @@
 """
 summarizer.py
 -------------
-Gemini Native Audio ile:
-1. Videonun baştan aşağı birebir TAM TRANSKRİPTİNİ (Zaman damgalı [00:00])
-2. Yapılandırılmış profesyonel DERS NOTLARINI ve ÖZETİNİ
-tek seferde üreten modül.
+Whisper'ın çıkardığı ham transkripti alıp Google Gemini ile
+yapılandırılmış profesyonel Türkçe ders notu, özet ve kavramlar sözlüğüne dönüştürür.
 """
 
 import os
 import time
 import logging
-from pathlib import Path
 from google import genai
 from google.genai import types
 
 logger = logging.getLogger(__name__)
 
-SYSTEM_PROMPT = """Sen, eğitim videolarını dinleyip hem EKSİKSİZ BİREBİR TRANSKRİPTİNİ çıkaran hem de profesyonel DERS NOTLARI hazırlayan uzman bir asistansın.
+SYSTEM_PROMPT = """Sen, konuşma transkriptlerini inceleyip bunlardan kapsamlı, profesyonel ders notları ve özetler çıkaran uzman bir akademisyensin.
 
-Sana verilen ses kaydını dikkatle dinle ve çıktıyı tam olarak şu iki ana bölüm halinde Markdown olarak üret:
-
-# 📚 [Video / Ders Konu Başlığı]
-
----
-
-# 🎙️ BÖLÜM 1: VİDEONUN BİREBİR TAM TRANSKRİPTİ
-(Bu bölümde videoda konuşulan HER ŞEYİ, kelimesi kelimesine, baştan sona eksiksiz olarak dök. 
-Asla özetleme, atlama veya kısaltma yapma! Konuşulan her paragrafın/cümlenin başına zaman damgasını [00:00] formatında ekle.)
-
-Örnek format:
-[00:00] Merhaba arkadaşlar...
-[00:15] Konuşmacının söylediği sonraki cümle...
-[00:45] ...
-(Videonun sonuna kadar kelimesi kelimesine devam et)
-
----
-
-# 🎓 BÖLÜM 2: YAPAY ZEKA DERS NOTLARI VE ANALİZ
+Sana verilen transkripti baştan sona dikkatlice oku ve aşağıdaki yapıda Türkçe, akademik kalitede bir ders/toplantı notu üret:
 
 ## 🎯 Genel Özet
-(Videonun ne anlattığını açıklayan 2-4 cümlelik net özet)
+(Videonun/konuşmanın amacını ve ne anlattığını açıklayan 2-4 cümlelik net özet)
 
 ## 🗂️ İşlenen Ana Başlıklar
-(Videoda anlatılan ana konuları kronolojik ve numaralı liste olarak yaz)
+(Konuşmada anlatılan ana konuları kronolojik ve numaralı liste olarak yaz)
 
 ## 📖 Kapsamlı Notlar ve Açıklamalar
 (Her ana başlığı alt başlık olarak aç. Önemli terimleri **kalın** yap.
@@ -50,7 +29,7 @@ Asla özetleme, atlama veya kısaltma yapma! Konuşulan her paragrafın/cümleni
  Varsa kod veya komut örneklerini ``` blokları içinde yaz.)
 
 ## ⚡ Anahtar Kavramlar Sözlüğü
-(Videoda geçen kritik teknik terimlerin ve tanımlarının madde işaretli listesi)
+(Konuşmada geçen kritik teknik terimlerin ve tanımlarının madde işaretli listesi)
 
 ## ❓ Olası Sınav / Mülakat Soruları
 (Bu konudan gelebilecek, konuyu pekiştiren 3-5 adet soru ve cevapları)
@@ -67,73 +46,57 @@ def _get_client() -> genai.Client:
     return genai.Client(api_key=api_key)
 
 
-def generate_notes_from_audio(
-    audio_path: str,
+def generate_study_notes(
+    transcript_text: str,
     video_title: str = "",
     model_name: str | None = None,
 ) -> str:
+    """
+    Whisper transkriptini Gemini'ye metin olarak gönderir ve ders notunu üretir.
+    Ses yüklemesi yapmadığı için 1-2 saniyede, sıfır kota yüküyle çalışır!
+    """
+    if model_name is None:
+        model_name = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+
     client = _get_client()
-    audio_file_path = Path(audio_path)
-
-    logger.info(f"[Summarizer] 🚀 Ses dosyası Gemini'ye aktarılıyor ({audio_file_path.name})...")
-    uploaded_file = client.files.upload(file=str(audio_file_path))
-    logger.info(f"[Summarizer] Dosya yüklendi (ID: {uploaded_file.name}).")
-
-    while uploaded_file.state.name == "PROCESSING":
-        time.sleep(1)
-        uploaded_file = client.files.get(name=uploaded_file.name)
-
-    if uploaded_file.state.name == "FAILED":
-        raise RuntimeError("Ses dosyası Gemini tarafında işlenemedi.")
 
     user_prompt = (
-        f"Video Başlığı: {video_title}\n\n"
-        "Lütfen yönergeye harfiyen uyarak:\n"
-        "1. BÖLÜM 1'de videoda geçen her kelimeyi zaman damgalarıyla [00:00] BAŞTAN SONA EKSİKSİZ, KELİMESİ KELİMESİNE TRANSKRİPTE ET.\n"
-        "2. BÖLÜM 2'de kapsamlı ders notlarını ve özetini çıkar."
+        f"Video / Toplantı Başlığı: {video_title}\n\n"
+        f"Aşağıda konuşmanın Whisper tarafından çıkarılmış tam transkripti bulunmaktadır:\n"
+        f"----------------------------------------\n"
+        f"{transcript_text}\n"
+        f"----------------------------------------\n\n"
+        f"Lütfen yukarıdaki transkripti analiz ederek yönergeye uygun Türkçe ders notunu oluştur."
     )
 
-    # Farklı mimarilerdeki kararlı modeller (Flash + Pro karması)
     candidate_models = [
-        "gemini-2.5-pro",
-        "gemini-3.5-flash",
-        "gemini-3.5-flash-lite",
+        model_name,
+        "gemini-2.5-flash",
         "gemini-flash-latest",
-        "gemini-pro-latest",
+        "gemini-3.5-flash-lite",
+        "gemini-3.5-flash",
     ]
-    if model_name and model_name not in candidate_models:
-        candidate_models.insert(0, model_name)
+    candidate_models = list(dict.fromkeys(candidate_models))
 
-    try:
-        last_error = None
-        for target_model in candidate_models:
-            for attempt in range(2):
-                logger.info(f"[Summarizer] 🧠 Gemini ({target_model}) sesi dinliyor... (Deneme {attempt+1})")
-                try:
-                    response = client.models.generate_content(
-                        model=target_model,
-                        contents=[uploaded_file, user_prompt],
-                        config=types.GenerateContentConfig(
-                            system_instruction=SYSTEM_PROMPT,
-                            temperature=0.2,
-                            max_output_tokens=8192,
-                        ),
-                    )
-                    if response.text and response.text.strip():
-                        logger.info(f"[Summarizer] ✅ Transkript ve ders notu başarıyla üretildi! ({target_model})")
-                        return response.text
-                except Exception as e:
-                    last_error = e
-                    # 503 yoğunluk hatasında 5 saniye dinlen ve tekrar dene
-                    if "503" in str(e) or "high demand" in str(e).lower():
-                        logger.warning(f"[Summarizer] {target_model} yoğunlukta, 5 saniye bekleniyor...")
-                        time.sleep(5)
-                    else:
-                        break # Farklı hataysa sonraki modele geç
-
-        raise last_error
-    finally:
+    last_error = None
+    for target_model in candidate_models:
+        logger.info(f"[Gemini] 🧠 Ders notu üretiliyor (Model: {target_model})...")
         try:
-            client.files.delete(name=uploaded_file.name)
-        except Exception:
-            pass
+            response = client.models.generate_content(
+                model=target_model,
+                contents=user_prompt,
+                config=types.GenerateContentConfig(
+                    system_instruction=SYSTEM_PROMPT,
+                    temperature=0.3,
+                    max_output_tokens=8192,
+                ),
+            )
+            if response.text and response.text.strip():
+                logger.info(f"[Gemini] ✅ Ders notu üretildi! (Model: {target_model})")
+                return response.text
+        except Exception as e:
+            last_error = e
+            logger.warning(f"[Gemini] {target_model} yanıt vermedi ({e}), sonraki modele geçiliyor...")
+            time.sleep(1)
+
+    raise last_error
