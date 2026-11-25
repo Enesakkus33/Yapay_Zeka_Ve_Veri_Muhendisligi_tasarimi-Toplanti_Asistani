@@ -1,2 +1,3 @@
-id,audio,meeting_date,participants,glossary
-m001,data/sample/audio/m001.wav,2026-11-18,"Ahmet;Zeynep;Can","deploy;backend;sprint;pull request;PostgreSQL"
+id,audio,meeting_date,participants,glossary,language
+m001_tr,temp_audio/hDw8ipwOVOg.mp3,2026-11-18,"Ahmet;Zeynep;Can","deploy;backend;sprint;pull request;PostgreSQL;Docker;migration;mockup",tr
+m002_en,temp_audio/Amow8BJm5Go.mp3,2026-11-20,"Google Cloud;DevOps;Site Reliability","data center;multi-tenancy;hyperscale;cloud computing;clusters;zones;regions;virtual machines",en

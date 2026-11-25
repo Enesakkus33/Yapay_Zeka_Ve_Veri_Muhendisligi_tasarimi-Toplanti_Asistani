@@ -5,8 +5,26 @@ from difflib import SequenceMatcher
 def norm(t): return re.sub(r"[^\w\s]", "", t.lower().replace("İ", "i").replace("I", "ı")).split()
 
 def wer(ref: str, hyp: str) -> float:
-    import jiwer
-    return jiwer.wer(" ".join(norm(ref)), " ".join(norm(hyp)))
+    try:
+        import jiwer
+        return float(jiwer.wer(" ".join(norm(ref)), " ".join(norm(hyp))))
+    except ImportError:
+        # jiwer yoksa saf Python Levenshtein Word Error Rate hesaplayıcı
+        r = norm(ref)
+        h = norm(hyp)
+        if not r: return 0.0 if not h else 1.0
+        d = [[0] * (len(h) + 1) for _ in range(len(r) + 1)]
+        for i in range(len(r) + 1): d[i][0] = i
+        for j in range(len(h) + 1): d[0][j] = j
+        for i in range(1, len(r) + 1):
+            for j in range(1, len(h) + 1):
+                if r[i - 1] == h[j - 1]:
+                    d[i][j] = d[i - 1][j - 1]
+                else:
+                    d[i][j] = min(d[i - 1][j] + 1,      # deletion
+                                  d[i][j - 1] + 1,      # insertion
+                                  d[i - 1][j - 1] + 1)  # substitution
+        return d[len(r)][len(h)] / len(r)
 
 def term_accuracy(ref: str, hyp: str, glossary: list[str]) -> float | None:
     r, h = " ".join(norm(ref)), " ".join(norm(hyp))

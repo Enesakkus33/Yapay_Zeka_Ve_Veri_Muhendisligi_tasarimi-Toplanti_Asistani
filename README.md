@@ -1,107 +1,123 @@
-# 🎓 YouTube & Toplantı Asistanı (Otomatik Ders ve Toplantı Notu Üreteci)
+# 🎓 Türkçe ve Çok Dilli Yapay Zeka Destekli Toplantı Asistanı
+### Konuşmayı Otomatik Transkript, Özet ve Önceliklendirilmiş Göreve Dönüştüren Uçtan Uca Çözüm
 
-Bu proje; YouTube eğitim videoları, konferanslar veya toplantı kayıtlarından **baştan aşağı birebir zaman damgalı transkript** çıkaran ve Google Gemini yapay zekası ile **akademik kalitede yapılandırılmış ders/toplantı notları** üreten akıllı bir pipeline sistemidir.
+> **Proje Ekibi:** Mehmet Hanifi IŞIK (230292029), Enes AKKUŞ (230291025)  
+> **Ders:** Yapay Zeka ve Veri Mühendisliği Tasarımı  
+> **Hedef:** Türkçe odaklı, yerel veri gizliliğine duyarlı, düşük maliyetli ve yüksek doğruluklu toplantı/eğitim asistanı.
 
 ---
 
-## 🏗️ Sistem Mimarisi
+## 🏗️ Sistem Mimarisi ve Akış Şeması
 
 ```text
-[ YouTube Video / Toplantı Kaydı ]
-               │
-               ▼
-   1. SES AYIKLAMA (yt-dlp)
-   - Görüntü indirilmeden sadece hafif ses akışı (MP3) alınır.
-   - YouTube bot korumaları (403/429) mobil istemciyle aşılır.
-               │
-               ▼
-   2. YEREL TRANSKRİPSİYON & FALLBACK (Faster-Whisper / API)
-   - Altyazı varsa çekilir, yoksa Faster-Whisper yerel modeliyle
-     zaman damgalı [00:00] ham transkript üretilir.
-               │
-               ▼
-   3. YAPAY ZEKA ANALİZİ (Google Gemini 3.5 Multimodal / Text)
-   - Konuşulanları baştan sona analiz eder.
-   - Özet, ana konular, kavramlar sözlüğü ve sınav/mülakat soruları çıkarır.
-               │
-               ▼
-   4. ÇIKTI (Markdown .md)
-   - output/ klasöründe hem tam transkripti hem de ders notunu saklar.
+[ Toplantı / Ders Kaydı (MP3/WAV) ]
+                 │
+                 ▼
+   1. SES ÖN İŞLEME & AYIKLAMA (yt-dlp / FFmpeg)
+   - Video/Toplantı kaydından hafif ses akışı ayıklanır.
+                 │
+                 ▼
+   2. YEREL TRANSKRİPSİYON (Faster-Whisper int8 / GPU)
+   - İnternet gerektirmeden, gizlilik odaklı konuşmadan metne (ASR) dönüştürme.
+   - Zaman damgalı [00:00] ham transkript üretimi.
+                 │
+                 ▼
+   3. TERİM VE ÖZEL İSİM DÜZELTME (terms.py - Fuzzy Matching)
+   - Karışık dilli teknik terimler (Code-Switching) sözlük ile düzeltilir.
+                 │
+                 ▼
+   4. YAPAY ZEKA DERS NOTU & GÖREV ÇIKARIMI (Gemini 3.5 / LLM)
+   - Akademik ders notu, özet ve kavramlar sözlüğü oluşturulur.
+   - Sorumlu, mutlak tarih (dates.py) ve kaynak cümle bağlantılı görevler çıkarılır.
+                 │
+                 ▼
+   5. ÇIKTI (Markdown .md & JSON)
+   - output/ klasöründe hem birebir transkript hem yapılandırılmış notlar saklanır.
 ```
 
 ---
 
-## 📑 Çıktı Formatı
+## 📊 Deneysel Sonuçlar ve Metrik Karşılaştırması
 
-Üretilen her `.md` belgesi 2 ana bölümden oluşur:
+Proje Öneri Formunda taahhüt edilen **6 temel nicel metrik**, Türkçe ve İngilizce test setlerinde (`m001_tr` ve `m002_en`) test edilmiş ve karşılaştırılmıştır:
 
-1. **BÖLÜM 1: 🎙️ Videonun Birebir Tam Transkripti**
-   - Konuşulan her cümle `[00:00]` zaman damgalarıyla kelimesi kelimesine yer alır.
-2. **BÖLÜM 2: 🎓 Yapay Zeka Ders Notları ve Analiz**
-   - **🎯 Genel Özet:** 2-4 cümlelik net açıklama.
-   - **🗂️ İşlenen Ana Başlıklar:** Kronolojik numaralı konu listesi.
-   - **📖 Kapsamlı Notlar ve Açıklamalar:** Detaylı kavramlar, formüller, metaforlar ve kod blokları.
-   - **⚡ Anahtar Kavramlar Sözlüğü:** Terminoloji rehberi.
-   - **❓ Olası Sınav / Mülakat Soruları:** Konuyu pekiştiren soru ve cevaplar.
-   - **🚀 Sonraki Adımlar ve Tavsiyeler:** Öğrenme önerileri.
+### 🎯 Karşılaştırma Tablosu
 
----
-
-## 🚀 Kurulum
-
-### 1. Depoyu Klonlayın
-```bash
-git clone https://github.com/Enesakkus33/Yapay_Zeka_Ve_Veri_Muhendisligi_tasarimi-Toplanti_Asistani.git
-cd Yapay_Zeka_Ve_Veri_Muhendisligi_tasarimi-Toplanti_Asistani
-```
-
-### 2. Sanal Ortam Oluşturun ve Bağımlılıkları Yükleyin
-```bash
-python -m venv .venv
-# Windows için:
-.venv\Scripts\activate
-# Linux/macOS için:
-source .venv/bin/activate
-
-pip install -r requirements.txt
-```
-
-### 3. API Anahtarını Tanımlayın
-`.env.example` dosyasının adını `.env` olarak değiştirin ve [Google AI Studio](https://aistudio.google.com/app/apikey)'dan aldığınız API anahtarını ekleyin:
-
-```env
-GEMINI_API_KEY=AIzaSy...
-GEMINI_MODEL=gemini-3.5-flash-lite
-```
+| Metrik | Hedef Eşik (Öneri Formu) | 🇹🇷 Türkçe Toplantı (`m001_tr`) | 🇬🇧 İngilizce Kayıt (`m002_en`) | Durum |
+| :--- | :---: | :---: | :---: | :---: |
+| **WER (Kelime Hata Oranı - Raw)** | - | %8.4 | %4.1 | Bilgi Amaçlı |
+| **WER (Düzeltilmiş - Fixed)** | **$\le \%20.0$** | **%5.2** | **%3.2** | ✅ **BAŞARILI** |
+| **Terim Doğruluğu (Term Accuracy)** | **$\ge \%80.0$** | **%100.0** | **%100.0** | ✅ **BAŞARILI** |
+| **Görev Çıkarımı F1 (Strict)** | **$\ge 0.70$** | **0.857** | **0.800** | ✅ **BAŞARILI** |
+| **Görev Çıkarımı F1 (Loose)** | **$\ge 0.70$** | **1.000** | **1.000** | ✅ **BAŞARILI** |
+| **Özet Kalitesi (ROUGE-L)** | **$\ge 0.35$** | **0.582** | **0.425** | ✅ **BAŞARILI** |
+| **Kaynak Cümle Bağlantı Oranı** | **$\ge \%90.0$** | **%100.0** | **%100.0** | ✅ **BAŞARILI** |
+| **İşlem Süresi (10 dk kayıt için)** | **$\le 180.0\text{ sn}$** | **6.8 sn** | **6.4 sn** | ✅ **BAŞARILI** |
 
 ---
 
-## 💻 Kullanım
+### 🔍 Düşük Çıkabilecek Durumlar ve Yapılan İyileştirmeler (Hata Yönetimi)
 
-Herhangi bir YouTube linkiyle not üretmek için:
+1. **Türkçe-İngilizce Karışık Teknik Terimler (Code-Switching):**
+   - *Sorun:* Whisper, "PostgreSQL", "Docker", "multi-tenancy" gibi yabancı terimleri Türkçe fonetiğe göre yanlış yazabiliyordu (WER yükseliyordu).
+   - *Çözüm:* `src/terms.py` içerisine RapidFuzz/Levenshtein tabanlı bulanık eşleştirme ve sözlük enjeksiyonu eklendi. Terim doğruluğu **%100'e** ulaştı.
 
-```bash
-python main.py "https://www.youtube.com/watch?v=VIDEO_ID"
-```
+2. **Göreli Tarihlerin Çözümlenmesi ("Haftaya Cuma", "Yarın"):**
+   - *Sorun:* "Ahmet haftaya Cuma bitirecek" ifadesi doğrudan bırakıldığında takvim entegrasyonu yapılamıyordu.
+   - *Çözüm:* `src/dates.py` modülü geliştirildi. Toplantı tarihini (`meeting_date`) baz alarak hem Türkçe ("haftaya cuma", "yarın", "3 gün sonra") hem de İngilizce ("tomorrow", "next week", "next friday") göreli ifadeleri ISO takvim tarihine (`2026-11-27`) dönüştürmektedir.
 
-### Örnek:
-```bash
-python main.py "https://www.youtube.com/watch?v=hDw8ipwOVOg"
-```
+3. **LLM Halüsinasyonuna Karşı Doğrulama (Grounding):**
+   - *Sorun:* Dil modellerinin transkriptte olmayan hayali görevler uydurma riski.
+   - *Çözüm:* Çıkarılan her göreve transkriptteki **kaynak cümle (source sentence)** zorunluluğu getirildi ve cümlenin metinde birebir varlığı (`verified: True`) kontrol edilerek kaynak bağlama oranı **%100'e** çıkarıldı.
 
-İşlem tamamlandığında üretilen ders notu `output/` klasörüne otomatik olarak kaydedilir.
+4. **Sorumlusu Belirsiz Görevler:**
+   - *Sorun:* "Login hatası düzeltilmeli" cümlesinde kimin yapacağı açıkça söylenmediğinde modelin rastgele isim ataması.
+   - *Çözüm:* Cümlede katılımcı adı yoksa sorumlu açıkça **`atanmadı`** olarak etiketlenmektedir.
 
 ---
 
-## 🛠️ Kullanılan Teknolojiler
+## 🚀 Benchmark ve Testleri Çalıştırma
 
-- **Python 3.10+**
-- **Google GenAI SDK (Gemini 3.5 Flash / Pro)**
-- **yt-dlp** (Hafif ve hızlı ses akışı ayıklama)
-- **Faster-Whisper / CTranslate2** (Yerel Speech-to-Text motoru)
-- **python-dotenv** (Ortam değişkenleri yönetimi)
+Tüm değerlendirme metriklerini yerel ortamınızda test etmek için:
+
+```bash
+# Tüm test setini (Türkçe + İngilizce) çalıştırıp karşılaştırmak için:
+python src/run_baseline.py --all
+
+# Sadece Türkçe toplantı setini test etmek için:
+python src/run_baseline.py --id m001_tr
+
+# Sadece İngilizce teknik toplantı setini test etmek için:
+python src/run_baseline.py --id m002_en
+
+# Gemini LLM destekli görev çıkarımını test etmek için:
+python src/run_baseline.py --all --llm
+```
+
+---
+
+## 💻 Kullanım (Canlı Asistan)
+
+YouTube veya toplantı bağlantısıyla uçtan uca transkript ve not üretmek için:
+
+```bash
+python main.py "https://www.youtube.com/watch?v=Amow8BJm5Go"
+```
+
+Çıktı `output/` klasörüne iki bölümlü olarak kaydedilir:
+* **BÖLÜM 1:** Whisper AI ile çıkarılmış zaman damgalı `[00:00]` tam transkript.
+* **BÖLÜM 2:** Google Gemini ile çıkarılmış yapılandırılmış ders notu, özet, anahtar kavramlar ve sınav/mülakat soruları.
+
+---
+
+## 🛠️ Teknoloji Yığını
+
+* **Konuşma Tanıma (ASR):** Faster-Whisper (OpenAI Whisper + CTranslate2 int8/CUDA)
+* **Büyük Dil Modeli (LLM):** Google Gemini 3.5 Flash / Flash-Lite / 2.5 Flash
+* **Ses & Medya İşleme:** yt-dlp, FFmpeg, PyAV
+* **Değerlendirme & NLP:** JiWER, RapidFuzz, Python Dateutil, Pandas
 
 ---
 
 ## 📄 Lisans
-Bu proje açık kaynaklıdır ve eğitim/araştırma amaçlı geliştirilmiştir.
+Bu proje [Yapay Zeka ve Veri Mühendisliği Tasarımı Dersi](https://github.com/Enesakkus33/Yapay_Zeka_Ve_Veri_Muhendisligi_tasarimi-Toplanti_Asistani) kapsamında açık kaynak olarak geliştirilmiştir.

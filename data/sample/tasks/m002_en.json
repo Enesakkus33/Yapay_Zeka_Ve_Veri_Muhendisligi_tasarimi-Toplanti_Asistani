@@ -1,0 +1,5 @@
+[
+  {"task": "deploy workloads across multiple zones to help protect against unexpected failures", "assignee": "Google Cloud", "due": null, "priority": "Orta"},
+  {"task": "maintaining these systems and paying for cooling", "assignee": "atanmadı", "due": null, "priority": "Düşük"},
+  {"task": "deploy resources in regions across the world with three or more zones", "assignee": "Google Cloud", "due": null, "priority": "Orta"}
+]
